@@ -3,11 +3,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from app.core.config import settings
-from app.core.database import engine, Base
+from app.core.database import engine, Base, SessionLocal
 from app.api import licenses, admin as admin_router
 from app.admin import admin as admin_panel
 from app.models.license import AdminUser
-from app.core.database import SessionLocal
 from app.core.security import get_password_hash
 
 
@@ -16,14 +15,14 @@ async def lifespan(app: FastAPI):
     """События запуска и остановки"""
     # Создаём таблицы
     Base.metadata.create_all(bind=engine)
-    
+
     # Создаём администратора по умолчанию
-    db = SessionLocal()
     try:
+        db = SessionLocal()
         admin_user = db.query(AdminUser).filter(
             AdminUser.username == settings.ADMIN_USERNAME
         ).first()
-        
+
         if not admin_user:
             admin_user = AdminUser(
                 username=settings.ADMIN_USERNAME,
@@ -34,9 +33,11 @@ async def lifespan(app: FastAPI):
             db.add(admin_user)
             db.commit()
             print(f"✓ Администратор создан: {settings.ADMIN_USERNAME}")
+    except Exception as e:
+        print(f"⚠ Ошибка создания администратора: {e}")
     finally:
         db.close()
-    
+
     yield
 
 
