@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { background: #f5f5f5; }
+        .sidebar { min-height: 100vh; background: #2c3e50; }
+        .sidebar a { color: #ecf0f1; text-decoration: none; }
+        .sidebar a:hover { background: #34495e; }
+        .content { padding: 2rem; }
+        .navbar { background: #34495e; }
+    </style>
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <nav class="col-md-2 d-md-block sidebar p-3">
+                <h4 class="text-white mb-4">{{ app_title }}</h4>
+                <ul class="nav flex-column">
+                    {% for model_view in admin.views %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('admin:list', identity=model_view.identity) }}">
+                            <i class="{{ model_view.icon or 'fa-solid fa-circle' }}"></i> {{ model_view.name_plural }}
+                        </a>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </nav>
+            <main class="col-md-10 ms-sm-auto content">
+                {% block content %}{% endblock %}
+            </main>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    {% block script %}{% endblock %}
+</body>
+</html>

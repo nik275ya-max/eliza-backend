@@ -5,9 +5,18 @@ from app.models.license import LicenseKey, AdminUser
 
 # Представления для админ-панели
 class LicenseKeyAdmin(ModelView, model=LicenseKey):
-    column_list = [LicenseKey.id, LicenseKey.key, LicenseKey.is_activated,
-                   LicenseKey.activation_count, LicenseKey.max_activations,
-                   LicenseKey.created_at]
+    name = "Лицензионные ключи"
+    name_plural = "Лицензионные ключи"
+    icon = "fa-solid fa-key"
+    
+    column_list = [
+        LicenseKey.id,
+        LicenseKey.key,
+        LicenseKey.is_activated,
+        LicenseKey.activation_count,
+        LicenseKey.max_activations,
+        LicenseKey.created_at,
+    ]
     column_default_sort = (LicenseKey.created_at, True)
     column_searchable_list = [LicenseKey.key]
     column_filters = [LicenseKey.is_activated, LicenseKey.created_at]
@@ -22,8 +31,17 @@ class LicenseKeyAdmin(ModelView, model=LicenseKey):
 
 
 class AdminUserAdmin(ModelView, model=AdminUser):
-    column_list = [AdminUser.id, AdminUser.username, AdminUser.email,
-                   AdminUser.is_active, AdminUser.created_at]
+    name = "Администраторы"
+    name_plural = "Администраторы"
+    icon = "fa-solid fa-user-shield"
+    
+    column_list = [
+        AdminUser.id,
+        AdminUser.username,
+        AdminUser.email,
+        AdminUser.is_active,
+        AdminUser.created_at,
+    ]
     column_default_sort = (AdminUser.created_at, True)
     column_searchable_list = [AdminUser.username]
     column_filters = [AdminUser.is_active]
@@ -37,6 +55,13 @@ class AdminUserAdmin(ModelView, model=AdminUser):
 
 
 # Инициализация админ-панели
-admin = Admin(engine=engine, title="Eliza Admin")
+admin = Admin(
+    engine=engine,
+    title="Eliza Admin",
+    logo_url="https://via.placeholder.com/100x100?text=E",
+    base_url="/admin",
+    templates_dir="templates",
+    statics_dir="static",
+)
 admin.add_view(LicenseKeyAdmin)
 admin.add_view(AdminUserAdmin)
