@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from app.core.config import settings
 from app.core.database import engine, Base
 from app.api import licenses, admin as admin_router
-from app.admin import init_admin
+from app.admin import admin as admin_panel
 from app.models.license import AdminUser
 from app.core.database import SessionLocal
 from app.core.security import get_password_hash
@@ -60,6 +60,9 @@ app.add_middleware(
 # Подключение роутов
 app.include_router(licenses.router)
 app.include_router(admin_router.router)
+
+# Подключение админ-панели
+admin_panel.mount_to(app)
 
 
 @app.get("/")
