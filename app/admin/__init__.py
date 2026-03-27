@@ -39,11 +39,13 @@ class AdminUserAdmin(ModelView, model=AdminUser):
     form_columns = [AdminUser.username, AdminUser.email, AdminUser.is_active]
 
 
-# Инициализация админ-панели
-admin = Admin(
-    engine=engine,
-    title="Eliza Admin",
-    base_url="/admin",
-)
-admin.add_view(LicenseKeyAdmin)
-admin.add_view(AdminUserAdmin)
+# Инициализация админ-панели (будет вызвана в main.py)
+def setup_admin(app):
+    admin = Admin(
+        app=app,
+        engine=engine,
+        title="Eliza Admin",
+    )
+    admin.add_view(LicenseKeyAdmin)
+    admin.add_view(AdminUserAdmin)
+    return admin
