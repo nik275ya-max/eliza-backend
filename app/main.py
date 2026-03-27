@@ -7,18 +7,11 @@ from app.core.database import engine, Base, SessionLocal
 from app.api import licenses, admin as admin_router
 from app.models.license import AdminUser
 from app.core.security import get_password_hash
-from app.admin import setup_admin
-
-
-# Глобальная переменная для админки
-admin_panel = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """События запуска и остановки"""
-    global admin_panel
-    
     # Создаём таблицы
     Base.metadata.create_all(bind=engine)
 
@@ -43,9 +36,6 @@ async def lifespan(app: FastAPI):
         print(f"⚠ Ошибка создания администратора: {e}")
     finally:
         db.close()
-
-    # Инициализируем админ-панель
-    admin_panel = setup_admin(app)
 
     yield
 
@@ -78,7 +68,7 @@ async def root():
     return {
         "message": "Eliza License API",
         "docs": "/docs",
-        "admin": "/admin",
+        "admin_docs": "/redoc",
     }
 
 

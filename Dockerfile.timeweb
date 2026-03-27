@@ -18,16 +18,13 @@ COPY . .
 # Переменные окружения
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
-ENV APP_HOST=0.0.0.0
-ENV APP_PORT=8000
 ENV DATABASE_URL=sqlite:///./eliza.db
 
-# Создаём папку для БД и статики
+# Создаём папку для БД
 RUN mkdir -p /app/data
-RUN mkdir -p /app/static
 
 # Экспорт порта
 EXPOSE 8000
 
-# Запуск через uvicorn с отладкой
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--log-level", "debug"]
+# Запуск через uvicorn
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
