@@ -5,7 +5,6 @@ from contextlib import asynccontextmanager
 from app.core.config import settings
 from app.core.database import engine, Base, SessionLocal
 from app.api import licenses, admin as admin_router
-from app.admin import admin as admin_panel
 from app.models.license import AdminUser
 from app.core.security import get_password_hash
 
@@ -62,9 +61,6 @@ app.add_middleware(
 app.include_router(licenses.router)
 app.include_router(admin_router.router)
 
-# Подключение админ-панели
-admin_panel.mount_to(app)
-
 
 @app.get("/")
 async def root():
@@ -84,13 +80,3 @@ async def health_check():
         "status": "healthy",
         "timestamp": datetime.utcnow().isoformat() + "Z",
     }
-
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(
-        "app.main:app",
-        host=settings.APP_HOST,
-        port=settings.APP_PORT,
-        reload=settings.DEBUG,
-    )

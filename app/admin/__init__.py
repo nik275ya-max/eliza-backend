@@ -7,7 +7,6 @@ from app.models.license import LicenseKey, AdminUser
 class LicenseKeyAdmin(ModelView, model=LicenseKey):
     name = "Лицензионные ключи"
     name_plural = "Лицензионные ключи"
-    icon = "fa-solid fa-key"
     
     column_list = [
         LicenseKey.id,
@@ -21,19 +20,11 @@ class LicenseKeyAdmin(ModelView, model=LicenseKey):
     column_searchable_list = [LicenseKey.key]
     column_filters = [LicenseKey.is_activated, LicenseKey.created_at]
     form_columns = [LicenseKey.key, LicenseKey.max_activations]
-    column_labels = {
-        LicenseKey.key: "Ключ",
-        LicenseKey.is_activated: "Активирован",
-        LicenseKey.activation_count: "Активаций",
-        LicenseKey.max_activations: "Макс. активаций",
-        LicenseKey.created_at: "Создан",
-    }
 
 
 class AdminUserAdmin(ModelView, model=AdminUser):
     name = "Администраторы"
     name_plural = "Администраторы"
-    icon = "fa-solid fa-user-shield"
     
     column_list = [
         AdminUser.id,
@@ -46,22 +37,13 @@ class AdminUserAdmin(ModelView, model=AdminUser):
     column_searchable_list = [AdminUser.username]
     column_filters = [AdminUser.is_active]
     form_columns = [AdminUser.username, AdminUser.email, AdminUser.is_active]
-    column_labels = {
-        AdminUser.username: "Имя",
-        AdminUser.email: "Email",
-        AdminUser.is_active: "Активен",
-        AdminUser.created_at: "Создан",
-    }
 
 
 # Инициализация админ-панели
 admin = Admin(
     engine=engine,
     title="Eliza Admin",
-    logo_url="https://via.placeholder.com/100x100?text=E",
     base_url="/admin",
-    templates_dir="templates",
-    statics_dir="static",
 )
 admin.add_view(LicenseKeyAdmin)
 admin.add_view(AdminUserAdmin)

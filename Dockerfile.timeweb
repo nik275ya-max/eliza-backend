@@ -22,11 +22,12 @@ ENV APP_HOST=0.0.0.0
 ENV APP_PORT=8000
 ENV DATABASE_URL=sqlite:///./eliza.db
 
-# Создаём папку для БД
+# Создаём папку для БД и статики
 RUN mkdir -p /app/data
+RUN mkdir -p /app/static
 
 # Экспорт порта
 EXPOSE 8000
 
-# Запуск через uvicorn - main в корне проекта
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Запуск через uvicorn с отладкой
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--log-level", "debug"]
