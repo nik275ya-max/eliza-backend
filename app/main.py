@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, HTMLResponse
 from contextlib import asynccontextmanager
 
 from app.core.config import settings
@@ -62,14 +62,9 @@ app.add_middleware(
 app.include_router(licenses.router)
 app.include_router(admin_router.router)
 
-# Монтирование админ-панели (после создания таблиц)
+# Монтирование админ-панели
 from app.admin import admin_app
 app.mount("/admin", admin_app)
-
-# Перенаправляем /admin на /admin/login
-@app.get("/admin")
-async def admin_redirect():
-    return RedirectResponse(url="/admin/login")
 
 
 @app.get("/")
@@ -90,3 +85,19 @@ async def health_check():
         "status": "healthy",
         "timestamp": datetime.utcnow().isoformat() + "Z",
     }
+
+
+@app.get("/admin", response_class=HTMLResponse)
+async def admin_login_redirect():
+    """Редирект с /admin на /admin/login"""
+    return """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta http-equiv="refresh" content="0;url=/admin/login">
+    </head>
+    <body>
+        <script>window.location.href = '/admin/login';</script>
+    </body>
+    </html>
+    """
