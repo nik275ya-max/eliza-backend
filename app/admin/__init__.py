@@ -510,7 +510,7 @@ def get_dashboard_html(admin: AdminUser, db: Session):
                                             <label class="form-label" style="color: var(--text-primary);">Лицензионный ключ</label>
                                             <input type="text" name="key" class="form-control" 
                                                    placeholder="ELIZA-YYYYMMDD-XXXX-XXXX" 
-                                                   pattern="ELIZA-\d{{8}}-[A-Z0-9]{{4}}-[A-Z0-9]{{4}}"
+                                                   pattern=r"ELIZA-\d{8}-[A-Z0-9]{4}-[A-Z0-9]{4}"
                                                    required style="text-transform: uppercase;">
                                         </div>
                                         <div class="mb-3">
@@ -550,23 +550,23 @@ async def login_page(request: Request, db: Session = Depends(get_db)):
 @admin_app.post("/authenticate")
 async def authenticate(request: Request, password: str = Form(...), db: Session = Depends(get_db)):
     admin = db.query(AdminUser).first()
-    
+
     if not admin or not verify_password(password, admin.hashed_password):
         raise HTTPException(status_code=401, detail="Неверный пароль")
-    
+
     if not admin.is_active:
         raise HTTPException(status_code=403, detail="Аккаунт заблокирован")
-    
+
     token = create_access_token(data={"sub": admin.username})
-    
-    response = RedirectResponse(url="/admin/dashboard", status_code=307)
+
+    response = RedirectResponse(url="/admin/dashboard", status_code=302)
     response.set_cookie(key="admin_token", value=token, httponly=True, max_age=604800)
     return response
 
 
 @admin_app.get("/logout")
 async def logout():
-    response = RedirectResponse(url="/admin/login")
+    response = RedirectResponse(url="/admin/login", status_code=302)
     response.delete_cookie("admin_token")
     return response
 
