@@ -61,9 +61,9 @@ app.add_middleware(
 app.include_router(licenses.router)
 app.include_router(admin_router.router)
 
-# Монтирование админ-панели
-from app.admin import setup_admin
-setup_admin(app)
+# Монтирование админ-панели (после создания таблиц)
+from app.admin import admin_app
+app.mount("/admin", admin_app)
 
 
 @app.get("/")
