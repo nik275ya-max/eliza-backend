@@ -510,9 +510,11 @@ def get_dashboard_html(admin: AdminUser, db: Session):
                                             <label class="form-label" style="color: var(--text-primary);">Лицензионный ключ</label>
                                             <input type="text" name="key" class="form-control" 
                                                    placeholder="ELIZA-YYYYMMDD-XXXX-XXXX" 
-                                                   pattern="ELIZA-[0-9]{8}-[A-Z0-9]{4}-[A-Z0-9]{4}"
                                                    required style="text-transform: uppercase;"
-                                                   title="Формат: ELIZA-YYYYMMDD-XXXX-XXXX">
+                                                   id="keyInput">
+                                            <small class="form-text" style="color: var(--text-secondary);">
+                                                Формат: ELIZA-YYYYMMDD-XXXX-XXXX
+                                            </small>
                                         </div>
                                         <div class="mb-3">
                                             <label class="form-label" style="color: var(--text-primary);">Макс. активаций</label>
@@ -532,6 +534,22 @@ def get_dashboard_html(admin: AdminUser, db: Session):
             </div>
         </div>
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+        <script>
+            // Автоматическое приведение к верхнему регистру
+            document.getElementById('keyInput').addEventListener('input', function(e) {
+                this.value = this.value.toUpperCase();
+            });
+            
+            // Валидация перед отправкой
+            document.querySelector('form[method="POST"]').addEventListener('submit', function(e) {
+                const key = document.getElementById('keyInput').value;
+                const pattern = /^ELIZA-\d{8}-[A-Z0-9]{4}-[A-Z0-9]{4}$/;
+                if (!pattern.test(key)) {
+                    e.preventDefault();
+                    alert('Неверный формат ключа! Используйте формат: ELIZA-YYYYMMDD-XXXX-XXXX');
+                }
+            });
+        </script>
     </body>
     </html>
     """
