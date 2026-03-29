@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Request, Form, Depends, HTTPException, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from passlib.context import CryptContext
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
@@ -222,7 +223,7 @@ def get_dashboard_html(admin: AdminUser, db: Session):
         LicenseKey.activation_count < LicenseKey.max_activations
     ).count()
     total_activations = db.query(LicenseKey.activation_count).with_entities(
-        db.func.sum(LicenseKey.activation_count)
+        func.sum(LicenseKey.activation_count)
     ).scalar() or 0
     
     # Получаем последние ключи
