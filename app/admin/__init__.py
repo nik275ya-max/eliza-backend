@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Request, Form, Depends, HTTPException, status
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from passlib.context import CryptContext
 from jose import JWTError, jwt
@@ -60,42 +60,9 @@ def admin_required(request: Request, db: Session = Depends(get_db)):
     return admin
 
 
-# Создаём таблицы
-Base.metadata.create_all(bind=engine)
-
-# Создаём администратора по умолчанию
-db_session = Session(engine)
-try:
-    admin_user = db_session.query(AdminUser).filter(
-        AdminUser.username == settings.ADMIN_USERNAME
-    ).first()
-    if not admin_user:
-        admin_user = AdminUser(
-            username=settings.ADMIN_USERNAME,
-            email=settings.ADMIN_EMAIL,
-            hashed_password=get_password_hash(settings.ADMIN_PASSWORD),
-            is_active=True,
-        )
-        db_session.add(admin_user)
-        db_session.commit()
-        print(f"✓ Администратор создан: {settings.ADMIN_USERNAME}")
-finally:
-    db_session.close()
-
-
-# Создаём админ-панель
-admin_app = FastAPI(title="Eliza Admin", docs_url=None, redoc_url=None)
-
-
 # ===== СТРАНИЦЫ =====
 
-@admin_app.get("/login", response_class=HTMLResponse)
-async def login_page(request: Request):
-    # Если уже авторизован - редирект в панель
-    db = next(get_db())
-    if get_current_admin(request, db):
-        return RedirectResponse(url="/admin/dashboard")
-    
+def get_login_html():
     return """
     <!DOCTYPE html>
     <html lang="ru">
@@ -176,11 +143,6 @@ async def login_page(request: Request):
                 margin-bottom: 1.5rem;
                 display: none;
             }
-            .input-group-text {
-                background: rgba(45, 55, 72, 0.8);
-                border: 2px solid #4a5568;
-                color: #9f7aea;
-            }
             .logo-icon {
                 font-size: 3rem;
                 color: #9f7aea;
@@ -207,14 +169,8 @@ async def login_page(request: Request):
                     <label for="password" class="form-label">
                         <i class="bi bi-key-fill"></i> Пароль администратора
                     </label>
-                    <div class="input-group">
-                        <input type="password" class="form-control" id="password" 
-                               placeholder="Введите пароль" required autofocus>
-                        <button class="btn btn-outline-secondary" type="button" 
-                                onclick="togglePassword()" style="border-color: #4a5568;">
-                            <i class="bi bi-eye" id="toggleIcon"></i>
-                        </button>
-                    </div>
+                    <input type="password" class="form-control" id="password" 
+                           placeholder="Введите пароль" required autofocus>
                 </div>
                 <button type="submit" class="btn btn-login">
                     <i class="bi bi-box-arrow-in-right"></i> Войти
@@ -223,20 +179,6 @@ async def login_page(request: Request):
         </div>
         
         <script>
-            function togglePassword() {
-                const input = document.getElementById('password');
-                const icon = document.getElementById('toggleIcon');
-                if (input.type === 'password') {
-                    input.type = 'text';
-                    icon.classList.remove('bi-eye');
-                    icon.classList.add('bi-eye-slash');
-                } else {
-                    input.type = 'password';
-                    icon.classList.remove('bi-eye-slash');
-                    icon.classList.add('bi-eye');
-                }
-            }
-            
             document.getElementById('login-form').addEventListener('submit', async (e) => {
                 e.preventDefault();
                 const password = document.getElementById('password').value;
@@ -270,36 +212,7 @@ async def login_page(request: Request):
     """
 
 
-@admin_app.post("/authenticate")
-async def authenticate(request: Request, password: str = Form(...), db: Session = Depends(get_db)):
-    admin = db.query(AdminUser).first()
-    
-    if not admin or not verify_password(password, admin.hashed_password):
-        raise HTTPException(status_code=401, detail="Неверный пароль")
-    
-    if not admin.is_active:
-        raise HTTPException(status_code=403, detail="Аккаунт заблокирован")
-    
-    token = create_access_token(data={"sub": admin.username})
-    
-    response = RedirectResponse(url="/admin/dashboard", status_code=307)
-    response.set_cookie(key="admin_token", value=token, httponly=True, max_age=604800)
-    return response
-
-
-@admin_app.get("/logout")
-async def logout():
-    response = RedirectResponse(url="/admin/login")
-    response.delete_cookie("admin_token")
-    return response
-
-
-@admin_app.get("/dashboard", response_class=HTMLResponse)
-async def dashboard(request: Request, db: Session = Depends(get_db)):
-    admin = get_current_admin(request, db)
-    if not admin:
-        return RedirectResponse(url="/admin/login")
-    
+def get_dashboard_html(admin: AdminUser, db: Session):
     # Получаем статистику
     total_keys = db.query(LicenseKey).count()
     activated_keys = db.query(LicenseKey).filter(LicenseKey.is_activated == True).count()
@@ -313,6 +226,21 @@ async def dashboard(request: Request, db: Session = Depends(get_db)):
     
     # Получаем последние ключи
     recent_keys = db.query(LicenseKey).order_by(LicenseKey.created_at.desc()).limit(10).all()
+    
+    rows_html = ""
+    for k in recent_keys:
+        status_badge = "badge-activated" if k.is_activated else "badge-not-activated"
+        status_text = "✓ Активирован" if k.is_activated else "✗ Не активирован"
+        date_str = k.created_at.strftime("%d.%m.%Y %H:%M") if k.created_at else "-"
+        rows_html += f"""
+        <tr>
+            <td><code>{k.key}</code></td>
+            <td><span class="badge {status_badge}">{status_text}</span></td>
+            <td>{k.activation_count}</td>
+            <td>{k.max_activations}</td>
+            <td>{date_str}</td>
+        </tr>
+        """
     
     return f"""
     <!DOCTYPE html>
@@ -558,17 +486,7 @@ async def dashboard(request: Request, db: Session = Depends(get_db)):
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {''.join(f'''
-                                    <tr>
-                                        <td><code>{k.key}</code></td>
-                                        <td><span class="badge {"badge-activated" if k.is_activated else "badge-not-activated"}">
-                                            {"✓ Активирован" if k.is_activated else "✗ Не активирован"}
-                                        </span></td>
-                                        <td>{k.activation_count}</td>
-                                        <td>{k.max_activations}</td>
-                                        <td>{k.created_at.strftime("%d.%m.%Y %H:%M") if k.created_at else "-"}</td>
-                                    </tr>
-                                    ''' for k in recent_keys)}
+                                    {rows_html}
                                 </tbody>
                             </table>
                         </div>
@@ -582,32 +500,78 @@ async def dashboard(request: Request, db: Session = Depends(get_db)):
     """
 
 
-# Монтируем SQLAdmin для управления данными
-from sqladmin import Admin, ModelView
+# Создаём админ-панель
+admin_app = FastAPI(title="Eliza Admin", docs_url=None, redoc_url=None)
 
-class LicenseKeyAdmin(ModelView, model=LicenseKey):
-    name = "Лицензии"
-    name_plural = "Лицензии"
-    icon = "bi bi-key"
-    column_list = [LicenseKey.id, LicenseKey.key, LicenseKey.is_activated, 
-                   LicenseKey.activation_count, LicenseKey.max_activations]
-    column_searchable_list = [LicenseKey.key]
-    column_filters = [LicenseKey.is_activated]
-    form_columns = [LicenseKey.key, LicenseKey.max_activations]
-    can_create = True
-    can_edit = True
-    can_delete = True
 
-class AdminUserAdmin(ModelView, model=AdminUser):
-    name = "Администраторы"
-    name_plural = "Администраторы"
-    icon = "bi bi-people"
-    column_list = [AdminUser.id, AdminUser.username, AdminUser.email, AdminUser.is_active]
-    form_columns = [AdminUser.username, AdminUser.email, AdminUser.is_active]
-    can_create = True
-    can_edit = True
-    can_delete = False
+@admin_app.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request, db: Session = Depends(get_db)):
+    if get_current_admin(request, db):
+        return RedirectResponse(url="/admin/dashboard")
+    return get_login_html()
 
-admin = Admin(app=admin_app, engine=engine)
-admin.add_view(LicenseKeyAdmin)
-admin.add_view(AdminUserAdmin)
+
+@admin_app.post("/authenticate")
+async def authenticate(request: Request, password: str = Form(...), db: Session = Depends(get_db)):
+    admin = db.query(AdminUser).first()
+    
+    if not admin or not verify_password(password, admin.hashed_password):
+        raise HTTPException(status_code=401, detail="Неверный пароль")
+    
+    if not admin.is_active:
+        raise HTTPException(status_code=403, detail="Аккаунт заблокирован")
+    
+    token = create_access_token(data={"sub": admin.username})
+    
+    response = RedirectResponse(url="/admin/dashboard", status_code=307)
+    response.set_cookie(key="admin_token", value=token, httponly=True, max_age=604800)
+    return response
+
+
+@admin_app.get("/logout")
+async def logout():
+    response = RedirectResponse(url="/admin/login")
+    response.delete_cookie("admin_token")
+    return response
+
+
+@admin_app.get("/dashboard", response_class=HTMLResponse)
+async def dashboard(request: Request, db: Session = Depends(get_db)):
+    admin = get_current_admin(request, db)
+    if not admin:
+        return RedirectResponse(url="/admin/login")
+    return get_dashboard_html(admin, db)
+
+
+# ===== SQLAdmin для управления данными =====
+try:
+    from sqladmin import Admin, ModelView
+    
+    class LicenseKeyAdmin(ModelView, model=LicenseKey):
+        name = "Лицензии"
+        name_plural = "Лицензии"
+        icon = "bi bi-key"
+        column_list = [LicenseKey.id, LicenseKey.key, LicenseKey.is_activated, 
+                       LicenseKey.activation_count, LicenseKey.max_activations]
+        column_searchable_list = [LicenseKey.key]
+        column_filters = [LicenseKey.is_activated]
+        form_columns = [LicenseKey.key, LicenseKey.max_activations]
+        can_create = True
+        can_edit = True
+        can_delete = True
+
+    class AdminUserAdmin(ModelView, model=AdminUser):
+        name = "Администраторы"
+        name_plural = "Администраторы"
+        icon = "bi bi-people"
+        column_list = [AdminUser.id, AdminUser.username, AdminUser.email, AdminUser.is_active]
+        form_columns = [AdminUser.username, AdminUser.email, AdminUser.is_active]
+        can_create = True
+        can_edit = True
+        can_delete = False
+
+    admin = Admin(app=admin_app, engine=engine)
+    admin.add_view(LicenseKeyAdmin)
+    admin.add_view(AdminUserAdmin)
+except ImportError:
+    print("⚠️ SQLAdmin не установлен, управление данными недоступно")
