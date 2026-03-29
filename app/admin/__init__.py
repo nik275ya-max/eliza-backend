@@ -544,35 +544,45 @@ async def dashboard(request: Request, db: Session = Depends(get_db)):
     return get_dashboard_html(admin, db)
 
 
-# ===== SQLAdmin для управления данными =====
-try:
-    from sqladmin import Admin, ModelView
+# ===== API для управления лицензиями =====
+
+@admin_app.get("/licensekey/")
+async def list_keys(request: Request, db: Session = Depends(get_db)):
+    """Список лицензий"""
+    admin = get_current_admin(request, db)
+    if not admin:
+        return RedirectResponse(url="/admin/login")
     
-    class LicenseKeyAdmin(ModelView, model=LicenseKey):
-        name = "Лицензии"
-        name_plural = "Лицензии"
-        icon = "bi bi-key"
-        column_list = [LicenseKey.id, LicenseKey.key, LicenseKey.is_activated, 
-                       LicenseKey.activation_count, LicenseKey.max_activations]
-        column_searchable_list = [LicenseKey.key]
-        column_filters = [LicenseKey.is_activated]
-        form_columns = [LicenseKey.key, LicenseKey.max_activations]
-        can_create = True
-        can_edit = True
-        can_delete = True
+    keys = db.query(LicenseKey).order_by(LicenseKey.created_at.desc()).all()
+    # Возвращаем HTML или JSON по запросу
+    return {"keys": [{"id": k.id, "key": k.key, "is_activated": k.is_activated, 
+                      "activation_count": k.activation_count, 
+                      "max_activations": k.max_activations} for k in keys]}
 
-    class AdminUserAdmin(ModelView, model=AdminUser):
-        name = "Администраторы"
-        name_plural = "Администраторы"
-        icon = "bi bi-people"
-        column_list = [AdminUser.id, AdminUser.username, AdminUser.email, AdminUser.is_active]
-        form_columns = [AdminUser.username, AdminUser.email, AdminUser.is_active]
-        can_create = True
-        can_edit = True
-        can_delete = False
 
-    admin = Admin(app=admin_app, engine=engine)
-    admin.add_view(LicenseKeyAdmin)
-    admin.add_view(AdminUserAdmin)
-except ImportError:
-    print("⚠️ SQLAdmin не установлен, управление данными недоступно")
+@admin_app.post("/licensekey/create")
+async def create_key(request: Request, key: str = Form(...), max_activations: int = Form(1), 
+                     db: Session = Depends(get_db)):
+    """Создание ключа"""
+    admin = get_current_admin(request, db)
+    if not admin:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    new_key = LicenseKey(key=key.upper(), max_activations=max_activations)
+    db.add(new_key)
+    db.commit()
+    return RedirectResponse(url="/admin/dashboard", status_code=303)
+
+
+@admin_app.delete("/licensekey/{key_id}")
+async def delete_key(request: Request, key_id: int, db: Session = Depends(get_db)):
+    """Удаление ключа"""
+    admin = get_current_admin(request, db)
+    if not admin:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    key = db.query(LicenseKey).filter(LicenseKey.id == key_id).first()
+    if key:
+        db.delete(key)
+        db.commit()
+    return {"success": True}

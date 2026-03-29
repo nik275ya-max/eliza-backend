@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 from contextlib import asynccontextmanager
 
 from app.core.config import settings
@@ -64,6 +65,11 @@ app.include_router(admin_router.router)
 # Монтирование админ-панели (после создания таблиц)
 from app.admin import admin_app
 app.mount("/admin", admin_app)
+
+# Перенаправляем /admin на /admin/login
+@app.get("/admin")
+async def admin_redirect():
+    return RedirectResponse(url="/admin/login")
 
 
 @app.get("/")
