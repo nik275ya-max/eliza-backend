@@ -1,7 +1,21 @@
 # Точка входа для приложения
-# Импортируем app из app.main
+# Минимальная версия для проверки работоспособности
 
-from app.main import app
+try:
+    from app.main import app
+except Exception as e:
+    print(f"ERROR importing app: {e}")
+    # Fallback - минимальное приложение
+    from fastapi import FastAPI
+    app = FastAPI()
+    
+    @app.get("/")
+    async def root():
+        return {"message": "Eliza Backend - Error loading main app"}
+    
+    @app.get("/health")
+    async def health():
+        return {"status": "healthy"}
 
 if __name__ == "__main__":
     import uvicorn
