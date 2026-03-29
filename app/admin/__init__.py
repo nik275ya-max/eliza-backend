@@ -536,19 +536,26 @@ def get_dashboard_html(admin: AdminUser, db: Session):
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
         <script>
             // Автоматическое приведение к верхнему регистру
-            document.getElementById('keyInput').addEventListener('input', function(e) {
-                this.value = this.value.toUpperCase();
-            });
-            
-            // Валидация перед отправкой
-            document.querySelector('form[method="POST"]').addEventListener('submit', function(e) {
-                const key = document.getElementById('keyInput').value;
-                const pattern = /^ELIZA-\d{8}-[A-Z0-9]{4}-[A-Z0-9]{4}$/;
-                if (!pattern.test(key)) {
-                    e.preventDefault();
-                    alert('Неверный формат ключа! Используйте формат: ELIZA-YYYYMMDD-XXXX-XXXX');
-                }
-            });
+            const keyInput = document.getElementById('keyInput');
+            if (keyInput) {{
+                keyInput.addEventListener('input', function(e) {{
+                    this.value = this.value.toUpperCase();
+                }});
+                
+                // Валидация перед отправкой
+                const form = keyInput.closest('form');
+                if (form) {{
+                    form.addEventListener('submit', function(e) {{
+                        const key = keyInput.value.trim();
+                        const pattern = /^ELIZA-\\d{{8}}-[A-Z0-9]{{4}}-[A-Z0-9]{{4}}$/;
+                        if (!pattern.test(key)) {{
+                            e.preventDefault();
+                            alert('Неверный формат ключа!\\n\\nПример: ELIZA-20271231-A1B2-C3D4');
+                            return false;
+                        }}
+                    }});
+                }}
+            }}
         </script>
     </body>
     </html>
