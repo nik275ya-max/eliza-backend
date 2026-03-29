@@ -510,8 +510,9 @@ def get_dashboard_html(admin: AdminUser, db: Session):
                                             <label class="form-label" style="color: var(--text-primary);">Лицензионный ключ</label>
                                             <input type="text" name="key" class="form-control" 
                                                    placeholder="ELIZA-YYYYMMDD-XXXX-XXXX" 
-                                                   pattern=r"ELIZA-\d{8}-[A-Z0-9]{4}-[A-Z0-9]{4}"
-                                                   required style="text-transform: uppercase;">
+                                                   pattern="ELIZA-[0-9]{8}-[A-Z0-9]{4}-[A-Z0-9]{4}"
+                                                   required style="text-transform: uppercase;"
+                                                   title="Формат: ELIZA-YYYYMMDD-XXXX-XXXX">
                                         </div>
                                         <div class="mb-3">
                                             <label class="form-label" style="color: var(--text-primary);">Макс. активаций</label>
