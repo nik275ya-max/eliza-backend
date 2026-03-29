@@ -236,6 +236,27 @@ def get_dashboard_html(admin: AdminUser, db: Session):
         status_badge = "badge-activated" if k.is_activated else "badge-not-activated"
         status_text = "✓ Активирован" if k.is_activated else "✗ Не активирован"
         date_str = k.created_at.strftime("%d.%m.%Y %H:%M") if k.created_at else "-"
+        
+        # Кнопки действий
+        actions = ""
+        if k.is_activated:
+            actions += f'''
+            <button class="btn btn-sm btn-warning me-1" onclick="deactivateKey({k.id}, '{k.key}')" title="Деактивировать">
+                <i class="bi bi-pause-fill"></i>
+            </button>
+            '''
+        else:
+            actions += f'''
+            <button class="btn btn-sm btn-success me-1" onclick="activateKey({k.id}, '{k.key}')" title="Активировать">
+                <i class="bi bi-play-fill"></i>
+            </button>
+            '''
+        actions += f'''
+        <button class="btn btn-sm btn-danger" onclick="deleteKey({k.id}, '{k.key}')" title="Удалить">
+            <i class="bi bi-trash-fill"></i>
+        </button>
+        '''
+        
         rows_html += f"""
         <tr>
             <td><code>{k.key}</code></td>
@@ -243,6 +264,7 @@ def get_dashboard_html(admin: AdminUser, db: Session):
             <td>{k.activation_count}</td>
             <td>{k.max_activations}</td>
             <td>{date_str}</td>
+            <td>{actions}</td>
         </tr>
         """
     
@@ -487,6 +509,7 @@ def get_dashboard_html(admin: AdminUser, db: Session):
                                         <th>Активаций</th>
                                         <th>Макс.</th>
                                         <th>Дата создания</th>
+                                        <th>Действия</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -554,6 +577,60 @@ def get_dashboard_html(admin: AdminUser, db: Session):
                             return false;
                         }}
                     }});
+                }}
+            }}
+            
+            // Удаление ключа
+            async function deleteKey(id, key) {{
+                if (!confirm('Вы уверены, что хотите удалить ключ ' + key + '?')) {{
+                    return;
+                }}
+                try {{
+                    const response = await fetch('/admin/licensekey/' + id, {{
+                        method: 'DELETE'
+                    }});
+                    if (response.ok) {{
+                        location.reload();
+                    }} else {{
+                        alert('Ошибка при удалении ключа');
+                    }}
+                }} catch (error) {{
+                    alert('Ошибка: ' + error);
+                }}
+            }}
+            
+            // Деактивация ключа
+            async function deactivateKey(id, key) {{
+                if (!confirm('Деактивировать ключ ' + key + '?')) {{
+                    return;
+                }}
+                try {{
+                    const response = await fetch('/admin/licensekey/' + id + '/deactivate', {{
+                        method: 'POST'
+                    }});
+                    if (response.ok) {{
+                        location.reload();
+                    }} else {{
+                        alert('Ошибка при деактивации ключа');
+                    }}
+                }} catch (error) {{
+                    alert('Ошибка: ' + error);
+                }}
+            }}
+            
+            // Активация ключа
+            async function activateKey(id, key) {{
+                try {{
+                    const response = await fetch('/admin/licensekey/' + id + '/activate', {{
+                        method: 'POST'
+                    }});
+                    if (response.ok) {{
+                        location.reload();
+                    }} else {{
+                        alert('Ошибка при активации ключа');
+                    }}
+                }} catch (error) {{
+                    alert('Ошибка: ' + error);
                 }}
             }}
         </script>
@@ -648,4 +725,35 @@ async def delete_key(request: Request, key_id: int, db: Session = Depends(get_db
     if key:
         db.delete(key)
         db.commit()
+    return {"success": True}
+
+
+@admin_app.post("/licensekey/{key_id}/deactivate")
+async def deactivate_key(request: Request, key_id: int, db: Session = Depends(get_db)):
+    """Деактивация ключа"""
+    admin = get_current_admin(request, db)
+    if not admin:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    key = db.query(LicenseKey).filter(LicenseKey.id == key_id).first()
+    if key:
+        key.is_activated = False
+        db.commit()
+    return {"success": True}
+
+
+@admin_app.post("/licensekey/{key_id}/activate")
+async def activate_key(request: Request, key_id: int, db: Session = Depends(get_db)):
+    """Активация ключа"""
+    admin = get_current_admin(request, db)
+    if not admin:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    key = db.query(LicenseKey).filter(LicenseKey.id == key_id).first()
+    if key and key.activation_count < key.max_activations:
+        key.is_activated = True
+        key.activation_count += 1
+        db.commit()
+    elif key:
+        raise HTTPException(status_code=400, detail="Достигнут лимит активаций")
     return {"success": True}
