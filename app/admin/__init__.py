@@ -215,6 +215,8 @@ def get_login_html():
 
 
 def get_dashboard_html(admin: AdminUser, db: Session):
+    from sqlalchemy import func
+    
     # Получаем статистику
     total_keys = db.query(LicenseKey).count()
     activated_keys = db.query(LicenseKey).filter(LicenseKey.is_activated == True).count()
@@ -472,9 +474,9 @@ def get_dashboard_html(admin: AdminUser, db: Session):
                     <div class="table-container">
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <h4><i class="bi bi-clock-history"></i> Последние ключи</h4>
-                            <a href="/admin/licensekey/create" class="btn btn-create">
+                            <button class="btn btn-create" data-bs-toggle="modal" data-bs-target="#createKeyModal">
                                 <i class="bi bi-plus-lg"></i> Создать ключ
-                            </a>
+                            </button>
                         </div>
                         <div class="table-responsive">
                             <table class="table table-hover">
@@ -491,6 +493,38 @@ def get_dashboard_html(admin: AdminUser, db: Session):
                                     {rows_html}
                                 </tbody>
                             </table>
+                        </div>
+                    </div>
+                    
+                    <!-- Modal для создания ключа -->
+                    <div class="modal fade" id="createKeyModal" tabindex="-1">
+                        <div class="modal-dialog">
+                            <div class="modal-content" style="background: var(--bg-card); border: 1px solid #4a5568;">
+                                <form method="POST" action="/admin/licensekey/create">
+                                    <div class="modal-header" style="border-bottom: 1px solid #4a5568;">
+                                        <h5 class="modal-title" style="color: var(--text-primary);">Создать ключ</h5>
+                                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <div class="mb-3">
+                                            <label class="form-label" style="color: var(--text-primary);">Лицензионный ключ</label>
+                                            <input type="text" name="key" class="form-control" 
+                                                   placeholder="ELIZA-YYYYMMDD-XXXX-XXXX" 
+                                                   pattern="ELIZA-\d{{8}}-[A-Z0-9]{{4}}-[A-Z0-9]{{4}}"
+                                                   required style="text-transform: uppercase;">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label" style="color: var(--text-primary);">Макс. активаций</label>
+                                            <input type="number" name="max_activations" class="form-control" 
+                                                   value="1" min="1" max="100">
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer" style="border-top: 1px solid #4a5568;">
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                                        <button type="submit" class="btn btn-create">Создать</button>
+                                    </div>
+                                </form>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -555,19 +589,21 @@ async def list_keys(request: Request, db: Session = Depends(get_db)):
         return RedirectResponse(url="/admin/login")
     
     keys = db.query(LicenseKey).order_by(LicenseKey.created_at.desc()).all()
-    # Возвращаем HTML или JSON по запросу
     return {"keys": [{"id": k.id, "key": k.key, "is_activated": k.is_activated, 
                       "activation_count": k.activation_count, 
                       "max_activations": k.max_activations} for k in keys]}
 
 
 @admin_app.post("/licensekey/create")
-async def create_key(request: Request, key: str = Form(...), max_activations: int = Form(1), 
-                     db: Session = Depends(get_db)):
+async def create_key(request: Request, db: Session = Depends(get_db)):
     """Создание ключа"""
     admin = get_current_admin(request, db)
     if not admin:
         raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    form = await request.form()
+    key = form.get("key", "")
+    max_activations = int(form.get("max_activations", 1))
     
     new_key = LicenseKey(key=key.upper(), max_activations=max_activations)
     db.add(new_key)
