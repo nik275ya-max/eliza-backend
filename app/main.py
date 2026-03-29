@@ -7,6 +7,7 @@ from app.core.database import engine, Base, SessionLocal
 from app.api import licenses, admin as admin_router
 from app.models.license import AdminUser
 from app.core.security import get_password_hash
+from app.admin import admin_app
 
 
 @asynccontextmanager
@@ -40,7 +41,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-# Создание приложения
+# Создание основного приложения
 app = FastAPI(
     title="Eliza License API",
     description="API для управления лицензиями",
@@ -57,9 +58,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Подключение роутов
+# Подключение роутов API
 app.include_router(licenses.router)
 app.include_router(admin_router.router)
+
+# Монтируем админ-панель
+app.mount("/admin", admin_app)
 
 
 @app.get("/")
@@ -68,7 +72,7 @@ async def root():
     return {
         "message": "Eliza License API",
         "docs": "/docs",
-        "admin_docs": "/redoc",
+        "admin": "/admin",
     }
 
 
