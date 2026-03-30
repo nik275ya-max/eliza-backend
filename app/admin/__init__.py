@@ -6,6 +6,8 @@ from passlib.context import CryptContext
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
 import os
+import random
+import string
 
 from app.core.database import get_db, engine, Base
 from app.models.license import AdminUser, LicenseKey
@@ -428,8 +430,11 @@ def get_dashboard_html(admin: AdminUser, db: Session):
                         Eliza Admin
                     </div>
                     <nav class="nav flex-column">
-                        <a class="nav-link active" href="/admin/dashboard">
+                        <a class="nav-link" href="/admin/dashboard">
                             <i class="bi bi-speedometer2"></i> Обзор
+                        </a>
+                        <a class="nav-link" href="/admin/generate-keys">
+                            <i class="bi bi-magic"></i> Генерация ключей
                         </a>
                         <a class="nav-link" href="/admin/licensekey/">
                             <i class="bi bi-key"></i> Лицензии
@@ -676,10 +681,280 @@ async def logout():
 
 @admin_app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard(request: Request, db: Session = Depends(get_db)):
-    admin = get_current_admin(request, db)
-    if not admin:
+    admin_user = get_current_admin(request, db)
+    if not admin_user:
         return RedirectResponse(url="/admin/login")
-    return get_dashboard_html(admin, db)
+    return get_dashboard_html(admin_user, db)
+
+
+@admin_app.get("/generate-keys", response_class=HTMLResponse)
+async def generate_keys_page(request: Request, db: Session = Depends(get_db)):
+    """Страница генерации ключей"""
+    admin_user = get_current_admin(request, db)
+    if not admin_user:
+        return RedirectResponse(url="/admin/login")
+    return get_generate_keys_html()
+
+
+@admin_app.post("/generate-keys", response_class=HTMLResponse)
+async def generate_keys_submit(
+    request: Request,
+    base_date: str = Form(...),
+    count: int = Form(1),
+    max_activations: int = Form(1),
+    db: Session = Depends(get_db)
+):
+    """Генерация ключей"""
+    admin_user = get_current_admin(request, db)
+    if not admin_user:
+        return RedirectResponse(url="/admin/login")
+    
+    import random
+    import string
+    from datetime import datetime
+    
+    # Парсим дату
+    try:
+        date_obj = datetime.strptime(base_date, '%Y-%m-%d')
+        date_str = date_obj.strftime('%Y%m%d')
+    except ValueError:
+        return get_generate_keys_html(error="Неверный формат даты")
+    
+    generated_keys = []
+    
+    for i in range(count):
+        # Генерируем случайные части
+        part1 = ''.join(random.choices(string.ascii_uppercase + string.digits, k=4))
+        part2 = ''.join(random.choices(string.ascii_uppercase + string.digits, k=4))
+        
+        key = f"ELIZA-{date_str}-{part1}-{part2}"
+        
+        # Проверяем, нет ли уже такого ключа
+        existing = db.query(LicenseKey).filter(LicenseKey.key == key).first()
+        if existing:
+            continue
+        
+        # Создаём ключ
+        new_key = LicenseKey(
+            key=key,
+            is_activated=False,
+            activation_count=0,
+            max_activations=max_activations
+        )
+        db.add(new_key)
+        generated_keys.append(key)
+    
+    db.commit()
+    
+    return get_generate_keys_html(success=f"Сгенерировано {len(generated_keys)} ключей", keys=generated_keys)
+
+
+def get_generate_keys_html(success: str = None, keys: list = None, error: str = None):
+    """HTML страница генерации ключей"""
+    from datetime import datetime
+    
+    success_html = ""
+    if success:
+        success_html = f"""
+        <div class="alert alert-success" role="alert">
+            <i class="bi bi-check-circle-fill"></i> {success}
+        </div>
+        """
+    
+    keys_html = ""
+    if keys:
+        keys_json = str(keys).replace("'", '"')
+        keys_list = "".join(f"<li><code>{k}</code></li>" for k in keys)
+        keys_html = f"""
+        <div class="generated-keys">
+            <h5><i class="bi bi-key-fill"></i> Сгенерированные ключи:</h5>
+            <ul>
+                {keys_list}
+            </ul>
+            <button class="btn btn-sm btn-outline-secondary" onclick="copyKeys()">
+                <i class="bi bi-clipboard"></i> Копировать все
+            </button>
+        </div>
+        <script>
+            function copyKeys() {{
+                const keys = {keys_json};
+                navigator.clipboard.writeText(keys.join('\\n'));
+                alert('Ключи скопированы в буфер обмена!');
+            }}
+        </script>
+        """
+    
+    error_html = ""
+    if error:
+        error_html = f"""
+        <div class="alert alert-danger" role="alert">
+            <i class="bi bi-exclamation-triangle-fill"></i> {error}
+        </div>
+        """
+    
+    next_year = datetime.now().replace(year=datetime.now().year+1)
+    
+    return f"""
+    <!DOCTYPE html>
+    <html lang="ru">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Генерация ключей - Eliza Admin</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+        <style>
+            :root {{
+                --bg-primary: #1a1a2e;
+                --bg-secondary: #16213e;
+                --bg-card: #1f2940;
+                --text-primary: #e6e6fa;
+                --text-secondary: #9999b3;
+                --accent: #9f7aea;
+                --success: #68d391;
+                --danger: #fc8181;
+            }}
+            body {{
+                background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+                min-height: 100vh;
+                color: var(--text-primary);
+            }}
+            .container {{
+                max-width: 800px;
+                padding: 2rem;
+            }}
+            .card {{
+                background: var(--bg-card);
+                border: 1px solid #4a5568;
+                border-radius: 12px;
+                padding: 2rem;
+            }}
+            .form-label {{
+                color: var(--text-primary);
+                font-weight: 500;
+            }}
+            .form-control {{
+                background: rgba(45, 55, 72, 0.8);
+                border: 2px solid #4a5568;
+                color: var(--text-primary);
+            }}
+            .form-control:focus {{
+                background: rgba(45, 55, 72, 0.9);
+                border-color: var(--accent);
+                color: var(--text-primary);
+                box-shadow: 0 0 0 3px rgba(159, 122, 234, 0.2);
+            }}
+            .btn-generate {{
+                background: linear-gradient(135deg, var(--accent) 0%, #7c3aed 100%);
+                border: none;
+                color: white;
+                padding: 0.75rem 2rem;
+                border-radius: 8px;
+                font-weight: 600;
+            }}
+            .btn-generate:hover {{
+                transform: translateY(-2px);
+                box-shadow: 0 8px 24px rgba(159, 122, 234, 0.5);
+            }}
+            .generated-keys {{
+                margin-top: 2rem;
+                padding: 1.5rem;
+                background: rgba(104, 211, 145, 0.1);
+                border: 1px solid var(--success);
+                border-radius: 8px;
+            }}
+            .generated-keys ul {{
+                list-style: none;
+                padding-left: 0;
+            }}
+            .generated-keys li {{
+                font-family: 'Courier New', monospace;
+                padding: 0.5rem;
+                margin: 0.25rem 0;
+                background: rgba(0, 0, 0, 0.2);
+                border-radius: 4px;
+            }}
+            .header {{
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 2rem;
+                padding-bottom: 1.5rem;
+                border-bottom: 1px solid #4a5568;
+            }}
+            .header-title {{
+                font-size: 1.75rem;
+                font-weight: 600;
+                color: var(--text-primary);
+            }}
+            .btn-back {{
+                background: rgba(45, 55, 72, 0.9);
+                border: 2px solid #4a5568;
+                color: var(--text-primary);
+                padding: 0.5rem 1rem;
+                border-radius: 8px;
+            }}
+            .btn-back:hover {{
+                border-color: var(--accent);
+                color: var(--accent);
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1 class="header-title"><i class="bi bi-magic"></i> Генерация ключей</h1>
+                <a href="/admin/dashboard" class="btn btn-back">
+                    <i class="bi bi-arrow-left"></i> Назад
+                </a>
+            </div>
+            
+            {success_html}
+            {error_html}
+            
+            <div class="card">
+                <form method="POST" action="/admin/generate-keys">
+                    <div class="mb-3">
+                        <label class="form-label">
+                            <i class="bi bi-calendar-event"></i> Дата окончания
+                        </label>
+                        <input type="date" name="base_date" class="form-control" required 
+                               min="{datetime.now().strftime('%Y-%m-%d')}" 
+                               value="{next_year.strftime('%Y-%m-%d')}">
+                        <small class="form-text" style="color: var(--text-secondary);">
+                            Ключи будут действительны до этой даты
+                        </small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">
+                            <i class="bi bi-hash"></i> Количество ключей
+                        </label>
+                        <input type="number" name="count" class="form-control" value="1" min="1" max="100">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">
+                            <i class="bi bi-lightning"></i> Макс. активаций на ключ
+                        </label>
+                        <input type="number" name="max_activations" class="form-control" value="1" min="1" max="100">
+                        <small class="form-text" style="color: var(--text-secondary);">
+                            Сколько раз можно активировать каждый ключ
+                        </small>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-generate">
+                        <i class="bi bi-magic"></i> Сгенерировать ключи
+                    </button>
+                </form>
+            </div>
+            
+            {keys_html}
+        </div>
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    </body>
+    </html>
+    """
 
 
 # ===== API для управления лицензиями =====
