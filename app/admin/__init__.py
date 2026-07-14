@@ -1129,11 +1129,11 @@ async def import_json(request: Request, file: UploadFile, db: Session = Depends(
     if not admin:
         return RedirectResponse(url="/admin/login")
     
-    if not file:
+    try:
+        content = await file.read()
+        data = json_module.loads(content.decode('utf-8'))
+    except Exception:
         return RedirectResponse(url="/admin/dashboard")
-    
-    content = await file.read()
-    data = json_module.loads(content.decode('utf-8'))
     
     imported = 0
     skipped = 0
