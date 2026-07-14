@@ -10,6 +10,7 @@ import random
 import string
 import csv
 import io
+import re
 
 from app.core.database import get_db, engine, Base
 from app.models.license import AdminUser, LicenseKey
@@ -504,6 +505,9 @@ def get_dashboard_html(admin: AdminUser, db: Session):
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <h4><i class="bi bi-clock-history"></i> Последние ключи</h4>
                             <div>
+                                <button class="btn btn-sm btn-outline-danger me-1" onclick="deleteExpiredKeys()" title="Удалить просроченные">
+                                    <i class="bi bi-trash"></i> Просроченные
+                                </button>
                                 <a href="/admin/export/json" class="btn btn-sm btn-outline-success me-1" title="Экспорт JSON">
                                     <i class="bi bi-download"></i> JSON
                                 </a>
@@ -705,6 +709,19 @@ def get_dashboard_html(admin: AdminUser, db: Session):
                 }} catch (error) {{
                     resultDiv.style.display = 'block';
                     resultDiv.innerHTML = '<div class="alert alert-danger">Ошибка: ' + error.message + '</div>';
+                }}
+            }}
+            
+            // Удаление просроченных ключей
+            async function deleteExpiredKeys() {{
+                if (!confirm('Удалить все просроченные ключи?')) return;
+                try {{
+                    const response = await fetch('/admin/delete-expired', {{ method: 'POST' }});
+                    const result = await response.json();
+                    alert('Удалено ключей: ' + result.deleted);
+                    location.reload();
+                }} catch (error) {{
+                    alert('Ошибка: ' + error);
                 }}
             }}
         </script>
@@ -1190,3 +1207,34 @@ async def import_json(request: Request, db: Session = Depends(get_db)):
     db.commit()
 
     return {"success": True, "imported": imported, "skipped": skipped}
+
+
+@admin_app.post("/delete-expired")
+async def delete_expired(request: Request, db: Session = Depends(get_db)):
+    """Удаление просроченных ключей"""
+    admin = get_current_admin(request, db)
+    if not admin:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    keys = db.query(LicenseKey).all()
+    deleted = 0
+    
+    for key in keys:
+        match = re.match(r'^ELIZA-(\d{8})-', key.key)
+        if not match:
+            continue
+        date_str = match.group(1)
+        try:
+            year = int(date_str[0:4])
+            month = int(date_str[4:6])
+            day = int(date_str[6:8])
+            expires = datetime(year, month, day)
+            if expires < today:
+                db.delete(key)
+                deleted += 1
+        except ValueError:
+            continue
+    
+    db.commit()
+    return {"deleted": deleted}
