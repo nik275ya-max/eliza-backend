@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Request, Form, Depends, HTTPException, status
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, Response
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from passlib.context import CryptContext
@@ -8,6 +8,9 @@ from datetime import datetime, timedelta
 import os
 import random
 import string
+import json
+import csv
+import io
 
 from app.core.database import get_db, engine, Base
 from app.models.license import AdminUser, LicenseKey
@@ -501,9 +504,20 @@ def get_dashboard_html(admin: AdminUser, db: Session):
                     <div class="table-container">
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <h4><i class="bi bi-clock-history"></i> Последние ключи</h4>
-                            <button class="btn btn-create" data-bs-toggle="modal" data-bs-target="#createKeyModal">
-                                <i class="bi bi-plus-lg"></i> Создать ключ
-                            </button>
+                            <div>
+                                <a href="/admin/export/json" class="btn btn-sm btn-outline-success me-1" title="Экспорт JSON">
+                                    <i class="bi bi-download"></i> JSON
+                                </a>
+                                <a href="/admin/export/csv" class="btn btn-sm btn-outline-info me-1" title="Экспорт CSV">
+                                    <i class="bi bi-download"></i> CSV
+                                </a>
+                                <button class="btn btn-sm btn-outline-warning me-1" data-bs-toggle="modal" data-bs-target="#importModal" title="Импорт">
+                                    <i class="bi bi-upload"></i> Импорт
+                                </button>
+                                <button class="btn btn-create" data-bs-toggle="modal" data-bs-target="#createKeyModal">
+                                    <i class="bi bi-plus-lg"></i> Создать ключ
+                                </button>
+                            </div>
                         </div>
                         <div class="table-responsive">
                             <table class="table table-hover">
@@ -553,6 +567,31 @@ def get_dashboard_html(admin: AdminUser, db: Session):
                                     <div class="modal-footer" style="border-top: 1px solid #4a5568;">
                                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
                                         <button type="submit" class="btn btn-create">Создать</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Modal для импорта ключей -->
+                    <div class="modal fade" id="importModal" tabindex="-1">
+                        <div class="modal-dialog">
+                            <div class="modal-content" style="background: var(--bg-card); border: 1px solid #4a5568;">
+                                <form method="POST" action="/admin/import/json" enctype="multipart/form-data">
+                                    <div class="modal-header" style="border-bottom: 1px solid #4a5568;">
+                                        <h5 class="modal-title" style="color: var(--text-primary);">Импорт ключей</h5>
+                                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <p style="color: var(--text-secondary);">Загрузите JSON файл с ключами</p>
+                                        <input type="file" name="file" accept=".json" class="form-control" required>
+                                        <small class="form-text" style="color: var(--text-secondary); margin-top: 0.5rem; display: block;">
+                                            Формат: [{"key": "ELIZA-...", "max_activations": 1}]
+                                        </small>
+                                    </div>
+                                    <div class="modal-footer" style="border-top: 1px solid #4a5568;">
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                                        <button type="submit" class="btn btn-create">Импортировать</button>
                                     </div>
                                 </form>
                             </div>
@@ -1033,3 +1072,93 @@ async def activate_key(request: Request, key_id: int, db: Session = Depends(get_
     elif key:
         raise HTTPException(status_code=400, detail="Достигнут лимит активаций")
     return {"success": True}
+
+
+# ===== ЭКСПОРТ/ИМПОРТ КЛЮЧЕЙ =====
+
+@admin_app.get("/export/json")
+async def export_json(request: Request, db: Session = Depends(get_db)):
+    """Экспорт всех ключей в JSON"""
+    admin = get_current_admin(request, db)
+    if not admin:
+        return RedirectResponse(url="/admin/login")
+    
+    keys = db.query(LicenseKey).all()
+    data = [{
+        "key": k.key,
+        "is_activated": k.is_activated,
+        "activation_count": k.activation_count,
+        "max_activations": k.max_activations,
+        "created_at": k.created_at.isoformat() if k.created_at else None
+    } for k in keys]
+    
+    return JSONResponse(
+        content=data,
+        headers={"Content-Disposition": "attachment; filename=license_keys.json"}
+    )
+
+
+@admin_app.get("/export/csv")
+async def export_csv(request: Request, db: Session = Depends(get_db)):
+    """Экспорт всех ключей в CSV"""
+    admin = get_current_admin(request, db)
+    if not admin:
+        return RedirectResponse(url="/admin/login")
+    
+    keys = db.query(LicenseKey).all()
+    
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["key", "is_activated", "activation_count", "max_activations", "created_at"])
+    for k in keys:
+        writer.writerow([k.key, k.is_activated, k.activation_count, k.max_activations, 
+                        k.created_at.isoformat() if k.created_at else ""])
+    
+    return Response(
+        content=output.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=license_keys.csv"}
+    )
+
+
+@admin_app.post("/import/json")
+async def import_json(request: Request, db: Session = Depends(get_db)):
+    """Импорт ключей из JSON файла"""
+    admin = get_current_admin(request, db)
+    if not admin:
+        return RedirectResponse(url="/admin/login")
+    
+    form = await request.form()
+    file = form.get("file")
+    
+    if not file:
+        return RedirectResponse(url="/admin/dashboard")
+    
+    content = await file.read()
+    data = json.loads(content)
+    
+    imported = 0
+    skipped = 0
+    
+    for item in data:
+        key = item.get("key", "").upper().strip()
+        if not key:
+            continue
+        
+        existing = db.query(LicenseKey).filter(LicenseKey.key == key).first()
+        if existing:
+            skipped += 1
+            continue
+        
+        new_key = LicenseKey(
+            key=key,
+            is_activated=item.get("is_activated", False),
+            activation_count=item.get("activation_count", 0),
+            max_activations=item.get("max_activations", 1)
+        )
+        db.add(new_key)
+        imported += 1
+    
+    db.commit()
+    
+    return RedirectResponse(url="/admin/dashboard", status_code=303)
