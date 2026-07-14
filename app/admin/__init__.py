@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Request, Form, Depends, HTTPException, status
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, Response
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from passlib.context import CryptContext
@@ -1114,8 +1115,8 @@ async def export_csv(request: Request, db: Session = Depends(get_db)):
         writer.writerow([k.key, k.is_activated, k.activation_count, k.max_activations, 
                         k.created_at.isoformat() if k.created_at else ""])
     
-    return Response(
-        content=output.getvalue(),
+    return StreamingResponse(
+        iter([output.getvalue()]),
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=license_keys.csv"}
     )
