@@ -1121,23 +1121,20 @@ async def export_csv(request: Request, db: Session = Depends(get_db)):
 
 
 @admin_app.post("/import/json")
-async def import_json(request: Request, file: UploadFile = None, db: Session = Depends(get_db)):
+async def import_json(request: Request, file: UploadFile, db: Session = Depends(get_db)):
     """Импорт ключей из JSON файла"""
     import json as json_module
-    
+
     admin = get_current_admin(request, db)
     if not admin:
         return RedirectResponse(url="/admin/login")
-    
-    if not file:
-        return RedirectResponse(url="/admin/dashboard")
-    
+
+    content = await file.read()
     try:
-        content = await file.read()
         data = json_module.loads(content.decode('utf-8'))
     except Exception:
         return RedirectResponse(url="/admin/dashboard")
-    
+
     imported = 0
     skipped = 0
     
