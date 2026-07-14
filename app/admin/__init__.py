@@ -9,7 +9,6 @@ from datetime import datetime, timedelta
 import os
 import random
 import string
-import json
 import csv
 import io
 
@@ -1125,6 +1124,7 @@ async def export_csv(request: Request, db: Session = Depends(get_db)):
 @admin_app.post("/import/json")
 async def import_json(request: Request, db: Session = Depends(get_db)):
     """Импорт ключей из JSON файла"""
+    import json
     admin = get_current_admin(request, db)
     if not admin:
         return RedirectResponse(url="/admin/login")
