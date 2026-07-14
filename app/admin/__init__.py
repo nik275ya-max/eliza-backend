@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, Form, Depends, HTTPException, status
+from fastapi import FastAPI, Request, Form, Depends, HTTPException, status, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -1121,16 +1121,13 @@ async def export_csv(request: Request, db: Session = Depends(get_db)):
 
 
 @admin_app.post("/import/json")
-async def import_json(request: Request, db: Session = Depends(get_db)):
+async def import_json(request: Request, file: UploadFile, db: Session = Depends(get_db)):
     """Импорт ключей из JSON файла"""
     import json as json_module
     
     admin = get_current_admin(request, db)
     if not admin:
         return RedirectResponse(url="/admin/login")
-    
-    form = await request.form()
-    file = form.get("file")
     
     if not file:
         return RedirectResponse(url="/admin/dashboard")
