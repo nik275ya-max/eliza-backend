@@ -576,23 +576,22 @@ def get_dashboard_html(admin: AdminUser, db: Session):
                     <div class="modal fade" id="importModal" tabindex="-1">
                         <div class="modal-dialog">
                             <div class="modal-content" style="background: var(--bg-card); border: 1px solid #4a5568;">
-                                <form method="POST" action="/admin/import/json" enctype="multipart/form-data">
-                                    <div class="modal-header" style="border-bottom: 1px solid #4a5568;">
-                                        <h5 class="modal-title" style="color: var(--text-primary);">Импорт ключей</h5>
-                                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                                    </div>
-                                    <div class="modal-body">
-                                        <p style="color: var(--text-secondary);">Загрузите JSON файл с ключами</p>
-                                        <input type="file" name="file" accept=".json" class="form-control" required>
-                                        <small class="form-text" style="color: var(--text-secondary); margin-top: 0.5rem; display: block;">
-                                            Формат: [{{"key": "ELIZA-...", "max_activations": 1}}]
-                                        </small>
-                                    </div>
-                                    <div class="modal-footer" style="border-top: 1px solid #4a5568;">
-                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-                                        <button type="submit" class="btn btn-create">Импортировать</button>
-                                    </div>
-                                </form>
+                                <div class="modal-header" style="border-bottom: 1px solid #4a5568;">
+                                    <h5 class="modal-title" style="color: var(--text-primary);">Импорт ключей</h5>
+                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <p style="color: var(--text-secondary);">Загрузите JSON файл с ключами</p>
+                                    <input type="file" id="importFile" accept=".json" class="form-control" required>
+                                    <small class="form-text" style="color: var(--text-secondary); margin-top: 0.5rem; display: block;">
+                                        Формат: [{{"key": "ELIZA-...", "max_activations": 1}}]
+                                    </small>
+                                    <div id="importResult" style="margin-top: 1rem; display: none;"></div>
+                                </div>
+                                <div class="modal-footer" style="border-top: 1px solid #4a5568;">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                                    <button type="button" class="btn btn-create" onclick="importKeys()">Импортировать</button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -674,6 +673,38 @@ def get_dashboard_html(admin: AdminUser, db: Session):
                     }}
                 }} catch (error) {{
                     alert('Ошибка: ' + error);
+                }}
+            }}
+            
+            // Импорт ключей
+            async function importKeys() {{
+                const fileInput = document.getElementById('importFile');
+                const resultDiv = document.getElementById('importResult');
+                
+                if (!fileInput.files.length) {{
+                    alert('Выберите JSON файл');
+                    return;
+                }}
+                
+                const file = fileInput.files[0];
+                const text = await file.text();
+                
+                try {{
+                    const data = JSON.parse(text);
+                    const response = await fetch('/admin/import/json', {{
+                        method: 'POST',
+                        headers: {{ 'Content-Type': 'application/json' }},
+                        body: JSON.stringify(data)
+                    }});
+                    
+                    const result = await response.json();
+                    resultDiv.style.display = 'block';
+                    resultDiv.innerHTML = '<div class="alert alert-success">Импортировано: ' + result.imported + ', пропущено (дубликаты): ' + result.skipped + '</div>';
+                    
+                    setTimeout(() => location.reload(), 1500);
+                }} catch (error) {{
+                    resultDiv.style.display = 'block';
+                    resultDiv.innerHTML = '<div class="alert alert-danger">Ошибка: ' + error.message + '</div>';
                 }}
             }}
         </script>
@@ -1121,30 +1152,29 @@ async def export_csv(request: Request, db: Session = Depends(get_db)):
 
 
 @admin_app.post("/import/json")
-async def import_json(request: Request, file: UploadFile, db: Session = Depends(get_db)):
+async def import_json(request: Request, db: Session = Depends(get_db)):
     """Импорт ключей из JSON файла"""
     import json as json_module
 
     admin = get_current_admin(request, db)
     if not admin:
-        return RedirectResponse(url="/admin/login")
+        raise HTTPException(status_code=401, detail="Unauthorized")
 
-    content = await file.read()
-    data = json_module.loads(content.decode('utf-8'))
+    body = await request.json()
 
     imported = 0
     skipped = 0
-    
-    for item in data:
+
+    for item in body:
         key = item.get("key", "").upper().strip()
         if not key:
             continue
-        
+
         existing = db.query(LicenseKey).filter(LicenseKey.key == key).first()
         if existing:
             skipped += 1
             continue
-        
+
         new_key = LicenseKey(
             key=key,
             is_activated=item.get("is_activated", False),
@@ -1153,7 +1183,7 @@ async def import_json(request: Request, file: UploadFile, db: Session = Depends(
         )
         db.add(new_key)
         imported += 1
-    
+
     db.commit()
-    
-    return RedirectResponse(url="/admin/dashboard", status_code=303)
+
+    return {"success": True, "imported": imported, "skipped": skipped}
