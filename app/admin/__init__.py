@@ -1135,7 +1135,7 @@ async def import_json(request: Request, db: Session = Depends(get_db)):
         return RedirectResponse(url="/admin/dashboard")
     
     content = await file.read()
-    data = json.loads(content)
+    data = json.loads(content.decode('utf-8'))
     
     imported = 0
     skipped = 0
