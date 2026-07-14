@@ -76,8 +76,13 @@ class LicenseService:
     @staticmethod
     def activate_key(db: Session, db_key: LicenseKey) -> bool:
         """Активация ключа"""
-        if db_key.activation_count >= db_key.max_activations:
+        # Если ключ уже активирован и лимит исчерпан - отказываем
+        if db_key.is_activated and db_key.activation_count >= db_key.max_activations:
             return False
+        
+        # Если ключ не активирован (деактивирован) - сбрасываем счётчик
+        if not db_key.is_activated:
+            db_key.activation_count = 0
         
         db_key.is_activated = True
         db_key.activation_count += 1

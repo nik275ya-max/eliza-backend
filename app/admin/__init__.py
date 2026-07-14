@@ -1013,6 +1013,7 @@ async def deactivate_key(request: Request, key_id: int, db: Session = Depends(ge
     key = db.query(LicenseKey).filter(LicenseKey.id == key_id).first()
     if key:
         key.is_activated = False
+        key.activation_count = 0
         db.commit()
     return {"success": True}
 
