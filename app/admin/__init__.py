@@ -1160,7 +1160,10 @@ async def import_json(request: Request, db: Session = Depends(get_db)):
     if not admin:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-    body = await request.json()
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON")
 
     imported = 0
     skipped = 0
