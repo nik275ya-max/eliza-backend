@@ -9,7 +9,6 @@ from app.schemas.license import (
     LicenseKeyResponse,
     LicenseKeyCreate,
     LicenseKeyUpdate,
-    StatsResponse,
 )
 from app.services.license import license_service
 from app.core.security import verify_password, get_password_hash
@@ -62,13 +61,6 @@ async def activate_license(request: LicenseActivateRequest, db: Session = Depend
         max_activations=db_key.max_activations,
         expires_formatted=validation["expires_formatted"],
     )
-
-
-@router.get("/stats", response_model=StatsResponse)
-async def get_stats(db: Session = Depends(get_db)):
-    """Получение статистики по лицензиям"""
-    stats = license_service.get_stats(db)
-    return StatsResponse(**stats)
 
 
 @router.get("/", response_model=List[LicenseKeyResponse])
